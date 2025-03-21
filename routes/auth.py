@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, unset_jwt_cookies
 import bcrypt
 from bson import ObjectId
 from database import get_db
+from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -16,6 +17,16 @@ def register():
 
         if not all([username, password, email]):
             return jsonify({'error': 'Missing required fields'}), 400
+
+        # Validate password strength
+        if len(password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+        if not any(c.isupper() for c in password):
+            return jsonify({'error': 'Password must contain at least one uppercase letter'}), 400
+        if not any(c.islower() for c in password):
+            return jsonify({'error': 'Password must contain at least one lowercase letter'}), 400
+        if not any(c.isdigit() for c in password):
+            return jsonify({'error': 'Password must contain at least one number'}), 400
 
         db = get_db()
         existing_user = db.users.find_one({'username': username})
@@ -31,7 +42,9 @@ def register():
             'username': username,
             'password': hashed_password,
             'email': email,
-            'balance': 0
+            'balance': 0,
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
         }
         
         result = db.users.insert_one(user)
@@ -59,8 +72,12 @@ def login():
         if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password']):
             return jsonify({'error': 'Invalid username or password'}), 401
 
-        # Create access token
-        access_token = create_access_token(identity=str(user['_id']))
+        # Create access token with 24-hour expiration
+        access_token = create_access_token(
+            identity=str(user['_id']),
+            expires_delta=timedelta(hours=24)
+        )
+        
         return jsonify({
             'access_token': access_token,
             'user': {
@@ -71,6 +88,15 @@ def login():
             }
         }), 200
 
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    try:
+        # The token will be invalidated on the client side
+        return jsonify({'message': 'Logged out successfully'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

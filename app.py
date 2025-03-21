@@ -1,9 +1,10 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
-from routes import auth_bp, bill_bp
+from routes.auth import auth_bp
+from routes.bill import bill_bp
 from database import client
 
 # Load environment variables
@@ -11,7 +12,31 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    
+    # Configure CORS
+    CORS(app, 
+         resources={
+             r"/*": {  # Match all routes
+                 "origins": ["http://localhost:3000"],
+                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                 "allow_headers": ["Content-Type", "Authorization"],
+                 "supports_credentials": True
+             }
+         })
+
+    # Add CORS headers to all responses
+    @app.after_request
+    def after_request(response):
+        origin = request.headers.get('Origin')
+        if origin and origin in ["http://localhost:3000"]:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            # Handle preflight requests
+            if request.method == 'OPTIONS':
+                response.headers['Access-Control-Max-Age'] = '3600'  # Cache preflight for 1 hour
+        return response
 
     # Configuration
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key')
@@ -19,7 +44,7 @@ def create_app():
     app.config['MONGODB_URI'] = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/livin')
     jwt = JWTManager(app)
 
-    # Register blueprints
+    # Register blueprints with CORS support
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(bill_bp, url_prefix='/api/bills')
 
@@ -50,4 +75,4 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000))) 
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=True) 
