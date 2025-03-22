@@ -24,6 +24,7 @@ def create_app():
     
     # Configure CORS
     CORS(app, 
+<<<<<<< HEAD
         resources={r"/api/*": {
             "origins": [
                 "http://localhost:3000",
@@ -38,6 +39,21 @@ def create_app():
             "vary_header": True
         }})
 
+=======
+        resources={
+            r"/api/*": {
+                "origins": "*",  # Allows requests from any origin
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization"],
+                "expose_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,  # Change to False if you don't need cookies/auth
+                "max_age": 3600,
+                "send_wildcard": True,  # Allows wildcard `*`
+                "automatic_options": True,
+                "vary_header": False  # Remove restrictions based on the `Origin` header
+            }
+        })
+>>>>>>> 96a244ed6f8d12516668704cac3af0d09de259a9
 
     # Configuration
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key')
