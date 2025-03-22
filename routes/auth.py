@@ -13,9 +13,8 @@ def register():
         data = request.get_json()
         username = data.get('username')
         password = data.get('password')
-        email = data.get('email')
 
-        if not all([username, password, email]):
+        if not all([username, password]):
             return jsonify({'error': 'Missing required fields'}), 400
 
         # Validate password strength
@@ -40,8 +39,7 @@ def register():
         # Create new user
         user = {
             'username': username,
-            'password': hashed_password,
-            'email': email,
+            'hashed_password': hashed_password,
             'balance': 0,
             'created_at': datetime.utcnow(),
             'updated_at': datetime.utcnow()
@@ -49,7 +47,7 @@ def register():
         
         result = db.users.insert_one(user)
         user['_id'] = str(result.inserted_id)
-        del user['password']  # Don't send password back
+        del user['hashed_password']  # Don't send password back
 
         return jsonify(user), 201
 
@@ -69,7 +67,7 @@ def login():
         db = get_db()
         user = db.users.find_one({'username': username})
 
-        if not user or not bcrypt.checkpw(password.encode('utf-8'), user['password']):
+        if not user or not bcrypt.checkpw(password.encode('utf-8'), user['hashed_password']):
             return jsonify({'error': 'Invalid username or password'}), 401
 
         # Create access token with 24-hour expiration
@@ -83,7 +81,6 @@ def login():
             'user': {
                 '_id': str(user['_id']),
                 'username': user['username'],
-                'email': user['email'],
                 'balance': user['balance']
             }
         }), 200
@@ -114,7 +111,6 @@ def get_profile():
         return jsonify({
             '_id': str(user['_id']),
             'username': user['username'],
-            'email': user['email'],
             'balance': user['balance']
         }), 200
 

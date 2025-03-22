@@ -13,7 +13,7 @@ bill_bp = Blueprint('bill', __name__)
 @jwt_required()
 def handle_bills():
     if request.method == 'OPTIONS':
-        return '', 200
+        return '', 204
     elif request.method == 'GET':
         return get_bills()
     elif request.method == 'POST':
@@ -23,21 +23,21 @@ def handle_bills():
 @jwt_required()
 def handle_bill(bill_id):
     if request.method == 'OPTIONS':
-        return '', 200
+        return '', 204
     return get_bill(bill_id)
 
 @bill_bp.route('/<bill_id>/pay', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def handle_bill_payment(bill_id):
     if request.method == 'OPTIONS':
-        return '', 200
+        return '', 204
     return pay_bill(bill_id)
 
 @bill_bp.route('/<bill_id>/participants/<int:participant_index>/pay', methods=['POST', 'OPTIONS'])
 @jwt_required()
 def handle_participant_payment(bill_id, participant_index):
     if request.method == 'OPTIONS':
-        return '', 200
+        return '', 204
     return mark_participant_as_paid(bill_id, participant_index)
 
 def get_bills():
@@ -179,15 +179,15 @@ def create_bill():
             # Create participants list with calculated amounts
             for participant in data['participants']:
                 external_name = participant['external_name']
-                if external_name not in participant_amounts:
-                    return jsonify({'error': f'Participant {external_name} has no items assigned'}), 400
+                # Initialize amount to 0 if participant has no items
+                amount = participant_amounts.get(external_name, 0)
                 
                 # Try to find user by username
                 user = User.find_by_username(external_name)
                 
                 participant_data = {
                     'external_name': external_name,
-                    'amount_due': round(participant_amounts[external_name], 2),
+                    'amount_due': round(amount, 2),
                     'status': 'unpaid'  # Default status
                 }
                 
@@ -259,7 +259,7 @@ def pay_bill(bill_id):
                 
                 # Get user and verify password
                 user = db.users.find_one({'_id': ObjectId(current_user_id)})
-                if not user or not bcrypt.checkpw(data.get('password', '').encode('utf-8'), user['password']):
+                if not user or not bcrypt.checkpw(data.get('password', '').encode('utf-8'), user['hashed_password']):
                     return jsonify({'error': 'Invalid password'}), 401
                 
                 amount_due = float(participant['amount_due'])
@@ -344,65 +344,55 @@ def get_bill(bill_id):
 @jwt_required()
 def mark_participant_as_paid(bill_id, participant_index):
     try:
-        if not ObjectId.is_valid(bill_id):
-            return jsonify({'error': 'Invalid bill ID format'}), 400
-
         current_user = get_jwt_identity()
         db = get_db()
         
-        # Start a session for transaction
-        with db.client.start_session() as session:
-            with session.start_transaction():
-                # Find the bill
-                bill = db.bills.find_one({'_id': ObjectId(bill_id)})
-                if not bill:
-                    return jsonify({'error': 'Bill not found'}), 404
-                
-                # Check if user is the creator
-                if bill['created_by'] != current_user:
-                    return jsonify({'error': 'Only the bill creator can mark participants as paid'}), 403
-                
-                # Check if participant index is valid
-                if participant_index < 0 or participant_index >= len(bill['participants']):
-                    return jsonify({'error': 'Invalid participant index'}), 400
-                
-                # Get the participant
-                participant = bill['participants'][participant_index]
-                
-                # Check if participant is external (no user_id)
-                if participant.get('user_id'):
-                    return jsonify({'error': 'Cannot mark registered users as paid. They must pay through their own account.'}), 400
-                
-                if participant['status'] == 'paid':
-                    return jsonify({'error': 'Participant already marked as paid'}), 400
-                
-                # Update participant status to paid
-                result = db.bills.update_one(
-                    {'_id': ObjectId(bill_id)},
-                    {
-                        '$set': {
-                            f'participants.{participant_index}.status': 'paid',
-                            'updated_at': datetime.utcnow()
-                        }
-                    },
-                    session=session
-                )
-                
-                if result.modified_count == 0:
-                    raise Exception('Failed to update participant status')
-                
-                # Get updated bill
-                updated_bill = db.bills.find_one(
-                    {'_id': ObjectId(bill_id)},
-                    session=session
-                )
-                
-                return jsonify({
-                    'message': 'Participant marked as paid successfully',
-                    'participant_name': participant['external_name'],
-                    'amount_paid': participant['amount_due']
-                }), 200
-                
+        # Find the bill
+        bill = db.bills.find_one({'_id': ObjectId(bill_id)})
+        if not bill:
+            return jsonify({'error': 'Bill not found'}), 404
+            
+        # Check if user is the creator
+        if bill['created_by'] != current_user:
+            return jsonify({'error': 'Only the bill creator can mark participants as paid'}), 403
+            
+        # Check if participant index is valid
+        if participant_index < 0 or participant_index >= len(bill['participants']):
+            return jsonify({'error': 'Invalid participant index'}), 400
+            
+        # Get the participant
+        participant = bill['participants'][participant_index]
+        
+        # Check if participant is external (no user_id)
+        if participant.get('user_id'):
+            return jsonify({'error': 'Cannot mark registered users as paid. They must pay through their own account.'}), 400
+            
+        if participant['status'] == 'paid':
+            return jsonify({'error': 'Participant already marked as paid'}), 400
+            
+        # Update participant status to paid
+        result = db.bills.update_one(
+            {'_id': ObjectId(bill_id)},
+            {
+                '$set': {
+                    f'participants.{participant_index}.status': 'paid',
+                    'updated_at': datetime.utcnow()
+                }
+            }
+        )
+        
+        if result.modified_count == 0:
+            raise Exception('Failed to update participant status')
+        
+        # Get updated bill
+        updated_bill = db.bills.find_one({'_id': ObjectId(bill_id)})
+        
+        return jsonify({
+            'message': 'Participant marked as paid successfully',
+            'participant_name': participant['external_name'],
+            'amount_paid': participant['amount_due']
+        }), 200
+        
     except Exception as e:
         print('Error marking participant as paid:', str(e))  # Add logging
         return jsonify({'error': str(e)}), 500 

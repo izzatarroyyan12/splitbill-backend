@@ -13,40 +13,47 @@ load_dotenv()
 def create_app():
     app = Flask(__name__)
     
-    # Configure CORS
+    # Configure CORS - Updated configuration
     CORS(app, 
          resources={
-             r"/*": {  # Match all routes
+             r"/api/*": {
                  "origins": ["http://localhost:3000"],
                  "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                  "allow_headers": ["Content-Type", "Authorization"],
-                 "supports_credentials": True
+                 "expose_headers": ["Content-Type", "Authorization"],
+                 "supports_credentials": True,
+                 "max_age": 3600,
+                 "send_wildcard": False,
+                 "automatic_options": True,
+                 "vary_header": True
              }
          })
-
-    # Add CORS headers to all responses
-    @app.after_request
-    def after_request(response):
-        origin = request.headers.get('Origin')
-        if origin and origin in ["http://localhost:3000"]:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-            # Handle preflight requests
-            if request.method == 'OPTIONS':
-                response.headers['Access-Control-Max-Age'] = '3600'  # Cache preflight for 1 hour
-        return response
 
     # Configuration
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key')
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600  # 1 hour
     app.config['MONGODB_URI'] = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/livin')
+    app.config['JWT_TOKEN_LOCATION'] = ['headers']
+    app.config['JWT_HEADER_NAME'] = 'Authorization'
+    app.config['JWT_HEADER_TYPE'] = 'Bearer'
+    
+    # Initialize JWT
     jwt = JWTManager(app)
 
-    # Register blueprints with CORS support
+    # Register blueprints with proper URL prefixes
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(bill_bp, url_prefix='/api/bills')
+
+    # Global error handler for CORS preflight
+    @app.before_request
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            response = app.make_default_options_response()
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+            return response
 
     # Error handlers
     @app.errorhandler(404)
@@ -68,7 +75,7 @@ def create_app():
 
     @app.route('/')
     def home():
-        return {'message': 'Welcome to Livin API'}
+        return jsonify({'message': 'Welcome to Livin API'})
 
     return app
 

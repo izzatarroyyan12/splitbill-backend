@@ -1,11 +1,10 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from database import get_db
 from bson import ObjectId
 
 class User(BaseModel):
     username: str
-    email: EmailStr
     balance: float = 0.0
     hashed_password: Optional[str] = None
 
@@ -13,7 +12,6 @@ class User(BaseModel):
         json_schema_extra = {
             "example": {
                 "username": "john_doe",
-                "email": "john@example.com",
                 "balance": 100000.0
             }
         }
