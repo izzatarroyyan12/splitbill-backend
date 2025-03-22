@@ -3,11 +3,21 @@ services:
     name: livin-backend
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app -c gunicorn_config.py
+    startCommand: gunicorn app:create_app() -c gunicorn_config.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET_KEY
-        sync: false 
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGIN
+        sync: false
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: tmp
+      mountPath: /tmp
+      sizeGB: 1 
