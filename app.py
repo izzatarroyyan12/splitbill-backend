@@ -24,19 +24,19 @@ def create_app():
     
     # Configure CORS
     CORS(app, 
-         resources={
-             r"/api/*": {
-                 "origins": os.getenv('CORS_ORIGIN', 'http://localhost:3000,https://splitbill-frontend-2v7w-bg20otyms.vercel.app/').split(','),
-                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                 "allow_headers": ["Content-Type", "Authorization"],
-                 "expose_headers": ["Content-Type", "Authorization"],
-                 "supports_credentials": True,
-                 "max_age": 3600,
-                 "send_wildcard": False,
-                 "automatic_options": True,
-                 "vary_header": True
-             }
-         })
+        resources={
+            r"/api/*": {
+                "origins": "*",  # Allows requests from any origin
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization"],
+                "expose_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,  # Change to False if you don't need cookies/auth
+                "max_age": 3600,
+                "send_wildcard": True,  # Allows wildcard `*`
+                "automatic_options": True,
+                "vary_header": False  # Remove restrictions based on the `Origin` header
+            }
+        })
 
     # Configuration
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key')
