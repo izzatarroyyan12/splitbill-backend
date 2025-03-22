@@ -26,7 +26,7 @@ def create_app():
     CORS(app, 
          resources={
              r"/api/*": {
-                 "origins": os.getenv('CORS_ORIGIN', 'http://localhost:3000').split(','),
+                 "origins": os.getenv('CORS_ORIGIN', 'http://localhost:3000,https://splitbill-frontend-2v7w-bg20otyms.vercel.app/').split(','),
                  "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                  "allow_headers": ["Content-Type", "Authorization"],
                  "expose_headers": ["Content-Type", "Authorization"],
